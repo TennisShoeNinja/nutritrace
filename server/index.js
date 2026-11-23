@@ -130,6 +130,8 @@ router.use(cookieParser());
 //   http://localhost                 — legacy http scheme
 //   https://app.nutritrace.local     — current app identity (see
 //                                      capacitor.config.ts for why)
+//   capacitor://app.nutritrace.local — the same app on iOS, where WKWebView
+//                                      won't serve the app over https
 // Same-host origins are always allowed (PWA served from this instance).
 router.use((req, res, next) => {
   const origin = req.headers.origin;
@@ -137,7 +139,8 @@ router.use((req, res, next) => {
     const host = req.headers.host;
     const isCapacitor = origin === 'https://localhost'
       || origin === 'http://localhost'
-      || origin === 'https://app.nutritrace.local';
+      || origin === 'https://app.nutritrace.local'
+      || origin === 'capacitor://app.nutritrace.local';
     const isSameHost = host && origin.includes(host);
     if (isCapacitor || isSameHost) {
       res.setHeader('Access-Control-Allow-Origin', origin);

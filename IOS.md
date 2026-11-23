@@ -46,3 +46,27 @@ If a new plugin is added upstream, check whether it supports iOS. `npx cap sync 
 
 ## Server
 In the app, choose the server option and enter `https://cronpi.tail4ec703.ts.net/nutrition`, then sign in.
+
+**The stock server image doesn't work with the iOS app.** On iOS the app's pages load from
+`capacitor://app.nutritrace.local` (WKWebView won't let Capacitor use `https://` for this), and
+upstream's CORS allowlist in `server/index.js` only has the Android origin `https://app.nutritrace.local`.
+Sign-in still works because it goes through native HTTP, but every later request is blocked, and the app
+shows "Can't reach <server>". This branch adds the iOS origin to the allowlist. cronpi has to run an image
+built from this branch until upstream accepts that origin.
+
+On cronpi, in a checkout of this fork:
+```bash
+git fetch origin && git checkout ios && git pull
+docker build -t nutritrace:ios .
+```
+In cronpi's compose file, change `image: ghcr.io/traceapps/nutritrace:...` to `image: nutritrace:ios`, keep the
+volumes and env as they are, then:
+```bash
+docker compose up -d
+```
+Check it:
+```bash
+curl -si -X OPTIONS -H "Origin: capacitor://app.nutritrace.local" -H "Access-Control-Request-Method: GET" https://cronpi.tail4ec703.ts.net/nutrition/api/health | grep -i allow-origin
+```
+It should print `access-control-allow-origin: capacitor://app.nutritrace.local`. After each upstream release, merge it
+into `ios` (see above) and rebuild this image instead of pulling upstream's.
