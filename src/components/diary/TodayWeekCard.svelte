@@ -92,7 +92,8 @@
 </section>
 
 <style>
-  .twc { margin: 0 var(--page-px) 12px; }
+  /* No margin of its own: the Diary already pads and spaces its cards. */
+  .twc { min-width: 0; }
   .twc-pages {
     display: grid;
     grid-auto-flow: column;
