@@ -21,6 +21,7 @@
   import AddActivitySheet from '../components/diary/AddActivitySheet.svelte';
   import QuickCaloriesSheet from '../components/diary/QuickCaloriesSheet.svelte';
   import FastingWidget from '../components/diary/FastingWidget.svelte';
+  import TodayWeekCard from '../components/diary/TodayWeekCard.svelte';   // fork: today / week card
   import { mealIcon } from '../lib/mealIcon.js';
   import Sheet        from '../components/ui/Sheet.svelte';
   import Dialog       from '../components/ui/Dialog.svelte';
@@ -2104,6 +2105,15 @@
     {#if $fastingEnabled}
       <FastingWidget />
     {/if}
+    <!-- fork: today / week card -->
+    <TodayWeekCard
+      currentDate={$currentDate} goal={$goals?.calories} fallbackGoal={caloriesGoal}
+      activityBonus={caloriesGoalAdjusted - caloriesGoal} refreshKey={_weekStripRefreshKey}
+      eatenKcal={$_calTween} protein={$_protTween} carbs={$_carbTween} fat={$_fatTween}
+      proteinGoal={protGoal} carbGoal={carbGoal} fatGoal={fatGoal}
+      onOpenSummary={() => diaryShowNutritionSummary.set(true)}
+      onOpenTrends={() => push('#/statistics?metric=calories&range=1M')}
+    />
     <!-- Meal groups. Rendered via a Svelte 5 snippet `mealCard` so we
          can consume it twice below — once per column (mealsLeft +
          mealsRight) — without duplicating ~230 lines of card markup.
