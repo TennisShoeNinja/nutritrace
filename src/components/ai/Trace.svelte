@@ -31,7 +31,7 @@
   import { currentUser } from '../../stores/auth.js';
   import SmartLogModal from '../diary/SmartLogModal.svelte';
   import { showError } from '../../stores/toast.js';
-  import { isNative, getServerUrl, getAuthToken, apiUrl } from '../../lib/platform.js';
+  import { isNative, isAndroid, getServerUrl, getAuthToken, apiUrl } from '../../lib/platform.js';
   import { acquireScreenWakeLock } from '../../lib/wake-lock.js';
   import { foldText } from '../../lib/search-text.js';
 
@@ -1542,7 +1542,7 @@
     } catch {}
     // Health Connect (Android local mode)
     try {
-      if ($healthConnectEnabled && isNative) {
+      if ($healthConnectEnabled && isAndroid) {
         const { dbGetWellnessByDate } = await import('../../lib/db-native.js');
         const hcData = await dbGetWellnessByDate(today, 'health_connect').catch(() => null);
         if (hcData && Object.keys(hcData).length) {

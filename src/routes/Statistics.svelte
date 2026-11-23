@@ -22,7 +22,7 @@
            fastingEnabled,
            diaryShowCompletion } from '../stores/settings.js';
   import FastingInsights from '../components/diary/FastingInsights.svelte';
-  import { isNative } from '../lib/platform.js';
+  import { isNative, isAndroid } from '../lib/platform.js';
   import { foldText } from '../lib/search-text.js';
 
   let _waterShowInStats = DB.getSetting('waterShowInStats', true);
@@ -265,7 +265,7 @@
         try { if ($garminEnabled)        garminData  = await NtApi.get(`/api/wellness/garmin/data?from=${fromStr}&to=${toStr}`); } catch {}
         // Android local-only mode (no server): fall back to the local
         // SQLite where on-device Health Connect data is stored directly.
-        if ($healthConnectEnabled && isNative) {
+        if ($healthConnectEnabled && isAndroid) {
           try {
             const { dbGetWellnessGrouped } = await import('../lib/db-native.js');
             hcData = await dbGetWellnessGrouped(fromStr, toStr, 'health_connect');
@@ -284,7 +284,7 @@
         // (weight, body_fat, muscle_mass) since it returns source IN
         // ('fitbit', 'health_connect') for every metric_type.
         try { if ($fitbitFamilyEnabled) fitbitData = await NtApi.get(`/api/wellness/fitbit/data?from=${fromStr}&to=${toStr}`); } catch {}
-        if ($healthConnectEnabled && isNative) {
+        if ($healthConnectEnabled && isAndroid) {
           try {
             const { dbGetWellnessGrouped } = await import('../lib/db-native.js');
             hcData = await dbGetWellnessGrouped(fromStr, toStr, 'health_connect');
@@ -308,7 +308,7 @@
       if (isBodyDevice) {
         try { if ($withingsEnabled) withingsData = await NtApi.get(`/api/wellness/withings/data?from=${fromStr}&to=${toStr}`); } catch {}
         try { if ($fitbitFamilyEnabled) fitbitBodyData = await NtApi.get(`/api/wellness/fitbit/data?from=${fromStr}&to=${toStr}`); } catch {}
-        if ($healthConnectEnabled && isNative) {
+        if ($healthConnectEnabled && isAndroid) {
           try {
             const { dbGetWellnessGrouped } = await import('../lib/db-native.js');
             hcBodyData = await dbGetWellnessGrouped(fromStr, toStr, 'health_connect');

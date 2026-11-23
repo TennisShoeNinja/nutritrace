@@ -1,7 +1,7 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'com.nutritrace.app',
+  appId: 'com.tennisshoeninja.nutritrace',
   appName: 'NutriTrace',
   webDir: 'dist',
   // In dev, point to your local Vite dev server for live-reload on device

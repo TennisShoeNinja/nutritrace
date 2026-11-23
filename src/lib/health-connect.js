@@ -26,7 +26,7 @@ const _dlog = _viteEnv && _viteEnv.DEV
   ? console.log
   : (...a) => { try { if (typeof localStorage !== 'undefined' && localStorage.getItem('nt:verboseLogging') === '1') console.log(...a); } catch {} };
 
-import { isNative } from './platform.js';
+import { isAndroid } from './platform.js';
 import { HealthConnect } from '@devmaxime/capacitor-health-connect';
 import {
   parseMassKg,
@@ -39,7 +39,8 @@ import {
 import { deriveHealthConnectSleep, localDate } from './sleep-sessions.js';
 
 function _getPlugin() {
-  if (!isNative) return null;
+  // Health Connect is Android-only; web and iOS get no plugin.
+  if (!isAndroid) return null;
   return HealthConnect;
 }
 
@@ -653,6 +654,7 @@ export async function readExerciseSessions(fromIso, toIso) {
  * Called during sync cycle when Health Connect is enabled.
  */
 export async function syncHealthConnect(dateStr) {
+  if (!isAndroid) return {};
   const metrics = await readTodayData(dateStr);
   const { dbUpsertWellness, dbUpsertWorkoutLocal } = await import('./db-native.js');
 

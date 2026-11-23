@@ -7,7 +7,7 @@
  * Uses server_time from pull response as last_sync_at (avoids clock skew).
  */
 
-import { getServerUrl, getAuthToken, loadImageMap, apiUrl } from './platform.js';
+import { getServerUrl, getAuthToken, loadImageMap, apiUrl, isAndroid } from './platform.js';
 
 // Verbose sync logs are gated on dev OR opt-in verbose mode
 // (Settings → Diagnostics → Verbose diagnostic logging).
@@ -915,7 +915,7 @@ async function _fullSync(silent, forceCheck, showFailureBanner, signal, gen) {
     // Read Health Connect data (if enabled) before push so it's included
     try {
       const { DB } = await import('./db.js');
-      if (DB.getSetting('healthConnectEnabled', false)) {
+      if (isAndroid && DB.getSetting('healthConnectEnabled', false)) {
         if (!silent) syncState.update(s => ({ ...s, phase: 'health', progress: 'Reading Health Connect…' }));
         const { syncHealthConnect } = await import('./health-connect.js');
         const today = new Date().toLocaleDateString('sv-SE');

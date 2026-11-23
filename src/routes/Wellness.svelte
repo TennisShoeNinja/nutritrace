@@ -9,7 +9,7 @@
   import { showSuccess, showError } from '../stores/toast.js';
   import { localDateStr } from '../lib/db.js';
   import { NtApi } from '../lib/api.js';
-  import { isNative, getServerUrl } from '../lib/platform.js';
+  import { isNative, isAndroid, getServerUrl } from '../lib/platform.js';
   import { offlineState } from '../lib/offline-api.js';
   import { portal } from '../lib/portal.js';
   import FitbitIcon from '../components/icons/FitbitIcon.svelte';
@@ -523,7 +523,7 @@
   let _workoutsSyncedOnce = false;
 
   async function syncHealthConnectManual() {
-    if (!$healthConnectEnabled || hcSyncing) return;
+    if (!isAndroid || !$healthConnectEnabled || hcSyncing) return;
     // Health Connect is an on-device Android API. On browser the underlying
     // plugin no-ops, so firing this from the auto-on-page-load path (or any
     // other call site) produced a "Health Connect synced" toast that didn't
@@ -1469,7 +1469,7 @@
 
   <!-- Fixed sync buttons — portalled to body so position:fixed is viewport-relative -->
   <div class="wl-topbar-actions" use:portal>
-    {#if $healthConnectEnabled && isNative && isToday}
+    {#if $healthConnectEnabled && isAndroid && isToday}
       <button class="wl-sync-icon-btn" class:wl-syncing={hcSyncing}
         on:click={syncHealthConnectManual} disabled={hcSyncing}
         title={$_('wellness_page.sync.health_connect')}>
@@ -1565,7 +1565,7 @@
             <div class="wl-rail-heading">Providers</div>
           {/if}
 
-          {#if $healthConnectEnabled && isNative}
+          {#if $healthConnectEnabled && isAndroid}
             <div class="wl-provider-row">
               <span class="wl-brand-icon wl-provider-icon"><HealthConnectIcon /></span>
               <span class="wl-provider-name">Health Connect</span>
@@ -1622,10 +1622,10 @@
           {/if}
 
           <!-- Sync All: fire every connected provider's sync in sequence. -->
-          {#if ($healthConnectEnabled && isNative) || status?.connected || garminStatus?.connected || withingsStatus?.connected}
+          {#if ($healthConnectEnabled && isAndroid) || status?.connected || garminStatus?.connected || withingsStatus?.connected}
             <button class="btn btn-primary wl-sync-all-btn"
               on:click={async () => {
-                if ($healthConnectEnabled && isNative && !hcSyncing) await syncHealthConnectManual();
+                if ($healthConnectEnabled && isAndroid && !hcSyncing) await syncHealthConnectManual();
                 if (status?.connected && !syncing) await sync();
                 if (garminStatus?.connected && !garminSyncing) await syncGarmin();
                 if (withingsStatus?.connected && !withingsSyncing) await syncWithings();

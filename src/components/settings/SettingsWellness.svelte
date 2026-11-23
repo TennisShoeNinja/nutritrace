@@ -21,7 +21,7 @@
   import { DB } from '../../lib/db.js';
   import { NtApi } from '../../lib/api.js';
   import { currentUser, userMgmtActive } from '../../stores/auth.js';
-  import { isNative, getServerUrl } from '../../lib/platform.js';
+  import { isNative, isAndroid, getServerUrl } from '../../lib/platform.js';
   const isNativeLocal = isNative && !getServerUrl();
 
   // ── Wellness state ──────────────────────────────────────────────────────────
@@ -38,7 +38,7 @@
   let hcLastBgSyncAt = null;
 
   // Check Health Connect availability on mount
-  if (isNative) {
+  if (isAndroid) {
     import('../../lib/health-connect.js').then(async ({ checkAvailability, getGrantedPermissions }) => {
       healthConnectAvailability = await checkAvailability();
       if (healthConnectAvailability === 'Available') {
@@ -1238,7 +1238,7 @@
     </div>
 
     <!-- Health Connect (Android only) -->
-    {#if isNative}
+    {#if isAndroid}
       <p class="sub-label" style="padding-top:16px">
         {$_('settings_wellness.hc.title')}
       </p>

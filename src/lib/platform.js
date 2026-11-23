@@ -15,6 +15,14 @@ import { originalUrlForCachedImage } from './image-cache-map.js';
 export const isNative = Capacitor.isNativePlatform();
 
 /**
+ * Native platform flags. Android-only features (Health Connect and its
+ * background worker) must check isAndroid, not isNative, so the iOS build
+ * skips them.
+ */
+export const isAndroid = Capacitor.getPlatform() === 'android';
+export const isIOS = Capacitor.getPlatform() === 'ios';
+
+/**
  * Server-injected base path (when NutriTrace is mounted at a subpath via
  * BASE_URL env var, e.g. `/nutritrace`). Empty string when running at root,
  * or in native where API calls go through getServerUrl() which already
