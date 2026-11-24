@@ -891,7 +891,7 @@
   $: protGoal  = _macroGoal('proteins', $currentDate);
   $: calPct    = Math.min(100, ((totals.calories||0) / caloriesGoalAdjusted) * 100);
 
-  // iOS widget: today's calories/protein and the goals exactly as shown here
+  // iOS widget: today's calories/macros and the goals exactly as shown here
   // (activity, dynamic and adaptive adjustments included). No-op off iOS.
   $: if (isIOS && $currentDate === localDateStr() && $currentEntry?.date === $currentDate) {
     pushWidgetSnapshot({
@@ -901,6 +901,12 @@
       protein: totals.proteins || 0,
       proteinGoal: protGoal,
       proteinIsMin: $goals?.proteins?.min != null && $goals?.proteins?.max == null,
+      carbs: totals.carbohydrates || 0,
+      carbsGoal: carbGoal,
+      carbsIsMin: $goals?.carbohydrates?.min != null && $goals?.carbohydrates?.max == null,
+      fat: totals.fat || 0,
+      fatGoal: fatGoal,
+      fatIsMin: $goals?.fat?.min != null && $goals?.fat?.max == null,
       energyUnit: $energyUnit,
     });
   }

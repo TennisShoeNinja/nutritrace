@@ -14,7 +14,8 @@ struct TodayEntry: TimelineEntry {
 struct TodayProvider: TimelineProvider {
     private static let sample = WidgetSnapshot(
         date: WidgetShared.dayString(), kcal: 1184, kcalGoal: 2200, protein: 162, proteinGoal: 234,
-        proteinIsMin: true, energyUnit: "kcal", updatedAt: Date(), source: "app")
+        proteinIsMin: true, carbs: 140, carbsGoal: 220, carbsIsMin: false, fat: 48, fatGoal: 70, fatIsMin: false,
+        energyUnit: "kcal", updatedAt: Date(), source: "app")
 
     func placeholder(in context: Context) -> TodayEntry {
         TodayEntry(date: Date(), snap: Self.sample, isCurrentDay: true, isPlaceholder: true)
@@ -65,28 +66,34 @@ enum ServerRefresh {
 
         guard let totals = await getJSON(base, "/api/v1/diary/\(today)/totals", token),
               let t = totals["totals"] as? [String: Any] else { return }
-        let kcal = num(t["calories"]) ?? 0
-        let protein = num(t["proteins"]) ?? 0
-
         // Goals: keep the ones the app last sent (they include activity / adaptive
         // adjustments the server doesn't compute). Only ask the server when the app
         // has never sent any.
-        var kcalGoal = previous?.kcalGoal
-        var proteinGoal = previous?.proteinGoal
-        var proteinIsMin = previous?.proteinIsMin ?? true
+        var snap = previous ?? WidgetSnapshot(
+            date: today, kcal: 0, kcalGoal: nil, protein: 0, proteinGoal: nil, proteinIsMin: true,
+            energyUnit: "kcal", updatedAt: Date(), source: "server")
         if previous == nil, let g = await getJSON(base, "/api/v1/goals", token),
            let goals = g["goals"] as? [String: Any] {
-            kcalGoal = resolveGoal(goals["calories"], today)
-            proteinGoal = resolveGoal(goals["proteins"], today)
-            if let p = goals["proteins"] as? [String: Any] {
-                proteinIsMin = p["min"] != nil && p["max"] == nil
+            func isMin(_ key: String) -> Bool {
+                guard let m = goals[key] as? [String: Any] else { return false }
+                return m["min"] != nil && m["max"] == nil
             }
+            snap.kcalGoal = resolveGoal(goals["calories"], today)
+            snap.proteinGoal = resolveGoal(goals["proteins"], today)
+            snap.proteinIsMin = isMin("proteins")
+            snap.carbsGoal = resolveGoal(goals["carbohydrates"], today)
+            snap.carbsIsMin = isMin("carbohydrates")
+            snap.fatGoal = resolveGoal(goals["fat"], today)
+            snap.fatIsMin = isMin("fat")
         }
 
-        let snap = WidgetSnapshot(
-            date: today, kcal: kcal, kcalGoal: kcalGoal, protein: protein, proteinGoal: proteinGoal,
-            proteinIsMin: proteinIsMin, energyUnit: previous?.energyUnit ?? "kcal",
-            updatedAt: Date(), source: "server")
+        snap.date = today
+        snap.kcal = num(t["calories"]) ?? 0
+        snap.protein = num(t["proteins"]) ?? 0
+        snap.carbs = num(t["carbohydrates"]) ?? 0
+        snap.fat = num(t["fat"]) ?? 0
+        snap.updatedAt = Date()
+        snap.source = "server"
         WidgetShared.saveSnapshot(snap)
     }
 
@@ -125,37 +132,69 @@ enum ServerRefresh {
 // MARK: - Display helpers
 
 private extension Color {
-    // The web app's --macro-calories / --macro-protein, light and dark.
-    static let ntCalories = Color(UIColor { $0.userInterfaceStyle == .dark
-        ? UIColor(red: 1.00, green: 0.835, blue: 0.31, alpha: 1)    // #FFD54F
-        : UIColor(red: 0.976, green: 0.659, blue: 0.145, alpha: 1) }) // #F9A825
-    static let ntProtein = Color(UIColor { $0.userInterfaceStyle == .dark
-        ? UIColor(red: 0.808, green: 0.576, blue: 0.847, alpha: 1)  // #CE93D8
-        : UIColor(red: 0.557, green: 0.141, blue: 0.667, alpha: 1) }) // #8E24AA
+    // The web app's --macro-* colours, dark and light.
+    static func nt(dark: UInt32, light: UInt32) -> Color {
+        func ui(_ hex: UInt32) -> UIColor {
+            UIColor(red: CGFloat((hex >> 16) & 0xFF) / 255, green: CGFloat((hex >> 8) & 0xFF) / 255,
+                    blue: CGFloat(hex & 0xFF) / 255, alpha: 1)
+        }
+        return Color(UIColor { $0.userInterfaceStyle == .dark ? ui(dark) : ui(light) })
+    }
+    static let ntCalories = nt(dark: 0xFFD54F, light: 0xF9A825)
+    static let ntProtein  = nt(dark: 0xCE93D8, light: 0x8E24AA)
+    static let ntCarbs    = nt(dark: 0x4FFFB0, light: 0x00A865)
+    static let ntFat      = nt(dark: 0xFFB347, light: 0xE07A00)
+}
+
+struct Macro {
+    let label: String     // "Protein"
+    let short: String     // "P"
+    let color: Color
+    let eaten: Double
+    let goal: Double?
+    let isMin: Bool
+
+    var progress: Double { guard let g = goal else { return 0 }; return min(max(eaten / g, 0), 1) }
+    /// A minimum reached, or a target hit within 5%.
+    var done: Bool {
+        guard let g = goal else { return false }
+        return isMin ? eaten >= g : abs(eaten - g) <= g * 0.05
+    }
+    /// Over a maximum/target by more than 5%.
+    var over: Bool { guard let g = goal, !isMin else { return false }; return eaten > g * 1.05 }
+    var amount: String { TodayNumbers.fmt(eaten) }
+    var amountOfGoal: String { goal.map { "\(amount)/\(TodayNumbers.fmt($0))" } ?? amount }
 }
 
 struct TodayNumbers {
-    let eaten: Double, goal: Double?, protein: Double, proteinGoal: Double?, proteinIsMin: Bool
+    let eaten: Double, goal: Double?
+    let macros: [Macro]
     let unit: String, factor: Double, asOf: Date?
 
     init(_ entry: TodayEntry) {
         let s = entry.snap
+        let today = entry.isCurrentDay
         let kj = s?.energyUnit == "kJ"
         factor = kj ? 4.184 : 1
         unit = kj ? "kJ" : "kcal"
-        eaten = entry.isCurrentDay ? (s?.kcal ?? 0) : 0
-        protein = entry.isCurrentDay ? (s?.protein ?? 0) : 0
-        goal = s?.kcalGoal.flatMap { $0 > 0 ? $0 : nil }
-        proteinGoal = s?.proteinGoal.flatMap { $0 > 0 ? $0 : nil }
-        proteinIsMin = s?.proteinIsMin ?? true
+        eaten = today ? (s?.kcal ?? 0) : 0
+        goal = Self.positive(s?.kcalGoal)
+        macros = [
+            Macro(label: "Protein", short: "P", color: .ntProtein, eaten: today ? (s?.protein ?? 0) : 0,
+                  goal: Self.positive(s?.proteinGoal), isMin: s?.proteinIsMin ?? true),
+            Macro(label: "Carbs", short: "C", color: .ntCarbs, eaten: today ? (s?.carbs ?? 0) : 0,
+                  goal: Self.positive(s?.carbsGoal), isMin: s?.carbsIsMin ?? false),
+            Macro(label: "Fat", short: "F", color: .ntFat, eaten: today ? (s?.fat ?? 0) : 0,
+                  goal: Self.positive(s?.fatGoal), isMin: s?.fatIsMin ?? false),
+        ]
         // Show "as of" when the numbers are over an hour old (same day only).
-        if entry.isCurrentDay, let u = s?.updatedAt, entry.date.timeIntervalSince(u) > 3600 { asOf = u } else { asOf = nil }
+        if today, let u = s?.updatedAt, entry.date.timeIntervalSince(u) > 3600 { asOf = u } else { asOf = nil }
     }
+
+    private static func positive(_ v: Double?) -> Double? { v.flatMap { $0 > 0 ? $0 : nil } }
 
     var remaining: Double? { goal.map { $0 - eaten } }
     var progress: Double { guard let g = goal else { return 0 }; return min(max(eaten / g, 0), 1) }
-    var proteinProgress: Double { guard let g = proteinGoal else { return 0 }; return min(max(protein / g, 0), 1) }
-    var proteinDone: Bool { proteinIsMin && proteinGoal != nil && protein >= proteinGoal! }
 
     func energy(_ kcal: Double) -> String { Self.fmt(kcal * factor) }
     static func fmt(_ v: Double) -> String {
@@ -168,6 +207,9 @@ struct TodayNumbers {
         guard let r = remaining else { return (energy(eaten), "\(unit) eaten") }
         return r >= 0 ? (energy(r), "\(unit) left") : (energy(-r), "\(unit) over")
     }
+
+    /// "P 70 · C 120 · F 40"
+    var macroLine: String { macros.map { "\($0.short) \($0.amount)" }.joined(separator: " · ") }
 }
 
 struct CalorieRing: View {
@@ -191,29 +233,25 @@ struct CalorieRing: View {
     }
 }
 
-struct ProteinBar: View {
-    let n: TodayNumbers
+struct MacroBar: View {
+    let m: Macro
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack(spacing: 4) {
-                Text("Protein").font(.caption).foregroundStyle(.secondary)
+        VStack(alignment: .leading, spacing: 2) {
+            HStack(spacing: 3) {
+                Text(m.label).font(.caption2).foregroundStyle(.secondary)
                 Spacer(minLength: 0)
-                if n.proteinDone { Image(systemName: "checkmark.circle.fill").font(.caption).foregroundStyle(Color.ntProtein) }
-                Text(proteinLabel).font(.caption.weight(.semibold)).monospacedDigit()
+                if m.done { Image(systemName: "checkmark.circle.fill").font(.caption2).foregroundStyle(m.color) }
+                Text("\(m.amountOfGoal) g").font(.caption2.weight(.semibold)).monospacedDigit()
+                    .foregroundStyle(m.over ? Color.red : Color.primary)
             }
             GeometryReader { g in
                 ZStack(alignment: .leading) {
-                    Capsule().fill(Color.ntProtein.opacity(0.2))
-                    Capsule().fill(Color.ntProtein).frame(width: max(g.size.width * n.proteinProgress, n.protein > 0 ? 6 : 0))
+                    Capsule().fill(m.color.opacity(0.2))
+                    Capsule().fill(m.color).frame(width: max(g.size.width * m.progress, m.eaten > 0 ? 5 : 0))
                 }
             }
-            .frame(height: 8)
+            .frame(height: 5)
         }
-    }
-    var proteinLabel: String {
-        let eaten = TodayNumbers.fmt(n.protein)
-        guard let g = n.proteinGoal else { return "\(eaten) g" }
-        return "\(eaten) / \(TodayNumbers.fmt(g)) g"
     }
 }
 
@@ -262,25 +300,29 @@ struct TodayWidgetView: View {
 
     private func small(_ n: TodayNumbers) -> some View {
         VStack(spacing: 6) {
-            CalorieRing(n: n, lineWidth: 11)
+            CalorieRing(n: n, lineWidth: 10)
             if n.asOf != nil {
                 asOf(n)
-            } else if let g = n.goal {
-                Text("\(n.energy(n.eaten)) / \(n.energy(g))").font(.caption2).foregroundStyle(.secondary).monospacedDigit()
+            } else {
+                // Coloured P · C · F amounts under the ring.
+                HStack(spacing: 6) {
+                    ForEach(n.macros, id: \.short) { m in
+                        HStack(spacing: 1) {
+                            Text(m.short).foregroundStyle(m.color).fontWeight(.bold)
+                            Text(m.amount).monospacedDigit()
+                        }
+                    }
+                }
+                .font(.caption2).lineLimit(1).minimumScaleFactor(0.7)
             }
         }
     }
 
     private func medium(_ n: TodayNumbers) -> some View {
-        HStack(spacing: 16) {
-            CalorieRing(n: n, lineWidth: 11).frame(maxWidth: 120)
-            VStack(alignment: .leading, spacing: 10) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Calories").font(.caption).foregroundStyle(.secondary)
-                    Text(n.goal.map { "\(n.energy(n.eaten)) / \(n.energy($0)) \(n.unit)" } ?? "\(n.energy(n.eaten)) \(n.unit)")
-                        .font(.subheadline.weight(.semibold)).monospacedDigit().lineLimit(1).minimumScaleFactor(0.7)
-                }
-                ProteinBar(n: n)
+        HStack(spacing: 14) {
+            CalorieRing(n: n, lineWidth: 11).frame(maxWidth: 118)
+            VStack(alignment: .leading, spacing: 7) {
+                ForEach(n.macros, id: \.short) { MacroBar(m: $0) }
                 asOf(n)
             }
         }
@@ -298,17 +340,15 @@ struct TodayWidgetView: View {
     }
 
     private func rectangular(_ n: TodayNumbers) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
+        VStack(alignment: .leading, spacing: 1) {
             Text("\(n.headline.0) \(n.headline.1)").font(.headline).widgetAccentable().lineLimit(1)
-            Text(n.proteinGoal.map { "Protein \(TodayNumbers.fmt(n.protein)) / \(TodayNumbers.fmt($0)) g" }
-                 ?? "Protein \(TodayNumbers.fmt(n.protein)) g")
-                .font(.caption).lineLimit(1)
-            Gauge(value: n.proteinProgress) { EmptyView() }.gaugeStyle(.accessoryLinearCapacity)
+            Text("P \(n.macros[0].amountOfGoal) g").font(.caption).lineLimit(1)
+            Text("C \(n.macros[1].amount) g · F \(n.macros[2].amount) g").font(.caption).lineLimit(1)
         }
     }
 
     private func inline(_ n: TodayNumbers) -> some View {
-        Text("\(n.headline.0) \(n.headline.1) · \(TodayNumbers.fmt(n.protein)) g protein")
+        Text("\(n.headline.0) \(n.headline.1) · \(n.macroLine)")
     }
 }
 
@@ -320,7 +360,7 @@ struct NutriTraceTodayWidget: Widget {
             TodayWidgetView(entry: entry)
         }
         .configurationDisplayName("Today")
-        .description("Calories left and protein for today.")
+        .description("Calories left, protein, carbs and fat for today.")
         .supportedFamilies([.systemSmall, .systemMedium, .accessoryCircular, .accessoryRectangular, .accessoryInline])
     }
 }

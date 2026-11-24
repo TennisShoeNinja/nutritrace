@@ -27,19 +27,23 @@ public class WidgetBridgePlugin: CAPPlugin, CAPBridgedPlugin {
             protein: call.getDouble("protein") ?? 0,
             proteinGoal: call.getDouble("proteinGoal"),
             proteinIsMin: call.getBool("proteinIsMin") ?? true,
+            carbs: call.getDouble("carbs"),
+            carbsGoal: call.getDouble("carbsGoal"),
+            carbsIsMin: call.getBool("carbsIsMin"),
+            fat: call.getDouble("fat"),
+            fatGoal: call.getDouble("fatGoal"),
+            fatIsMin: call.getBool("fatIsMin"),
             energyUnit: call.getString("energyUnit") ?? "kcal",
             updatedAt: Date(),
             source: "app")
         // Skip redraws when nothing visible changed (the Diary re-renders often).
-        if let old = WidgetShared.loadSnapshot(),
-           old.date == snap.date, old.kcal == snap.kcal, old.kcalGoal == snap.kcalGoal,
-           old.protein == snap.protein, old.proteinGoal == snap.proteinGoal,
-           old.proteinIsMin == snap.proteinIsMin, old.energyUnit == snap.energyUnit {
-            var touched = old
-            touched.updatedAt = snap.updatedAt
-            touched.source = "app"
-            WidgetShared.saveSnapshot(touched)
-            return call.resolve(["changed": false])
+        if var old = WidgetShared.loadSnapshot() {
+            old.updatedAt = snap.updatedAt
+            old.source = "app"
+            if old == snap {
+                WidgetShared.saveSnapshot(old)
+                return call.resolve(["changed": false])
+            }
         }
         WidgetShared.saveSnapshot(snap)
         WidgetCenter.shared.reloadTimelines(ofKind: WidgetShared.widgetKind)

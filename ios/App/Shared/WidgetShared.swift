@@ -14,6 +14,13 @@ struct WidgetSnapshot: Codable, Equatable {
     var protein: Double       // eaten, grams
     var proteinGoal: Double?  // grams
     var proteinIsMin: Bool    // true when the protein goal is a minimum to reach
+    // Optional so snapshots saved before carbs/fat were added still decode.
+    var carbs: Double? = nil        // grams
+    var carbsGoal: Double? = nil
+    var carbsIsMin: Bool? = nil
+    var fat: Double? = nil          // grams
+    var fatGoal: Double? = nil
+    var fatIsMin: Bool? = nil
     var energyUnit: String    // "kcal" or "kJ", for display only
     var updatedAt: Date
     var source: String        // "app" or "server"
