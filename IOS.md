@@ -19,9 +19,11 @@ it was merged into `main` on 2026-11-24 and `main` is the branch to use now.)
 ## Keeping the app in step with the web app
 The iPhone app ships its own copy of the web app (`dist/`, copied into the app at build time). It does
 **not** pick up frontend changes from the server. After you change the web app on `main`:
-- **Frontend only** (`src/`): pull on the Mac, then build, sync and install (the commands below, from
-  `npm run build` on). cronpi doesn't need anything.
-- **Server changed too** (`server/`): also rebuild `nutritrace:ios` on cronpi (see Server below).
+- **Frontend** (`src/`): pull on the Mac, then build, sync and install (the commands below, from
+  `npm run build` on) for the iPhone. Also rebuild `nutritrace:ios` on cronpi (see Server below): the
+  image bundles the web app that browsers load, so the browser only shows the change after that rebuild.
+- **Server** (`server/`): rebuild `nutritrace:ios` on cronpi. The iPhone needs nothing unless `src/`
+  changed too.
 
 ## Rebuild after an upstream release
 ```bash
