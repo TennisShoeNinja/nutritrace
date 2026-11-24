@@ -43,11 +43,27 @@ Then run it on the phone from Xcode (`npx cap open ios`, pick the iPhone, Run), 
 ```bash
 cd ios/App
 xcodebuild -workspace App.xcworkspace -scheme App -configuration Debug \
-  -destination 'generic/platform=iOS' -derivedDataPath build -allowProvisioningUpdates build
+  -destination 'generic/platform=iOS' -derivedDataPath ../DerivedData -allowProvisioningUpdates build
 xcrun devicectl list devices
-xcrun devicectl device install app --device <identifier> build/Build/Products/Debug-iphoneos/App.app
+xcrun devicectl device install app --device <identifier> ../DerivedData/Build/Products/Debug-iphoneos/App.app
 ```
 The phone must be unlocked during the install, or the developer disk image won't mount.
+Build into `ios/DerivedData` (git-ignored), not `ios/App/build`: `npx cap sync ios` runs `xcodebuild clean`,
+which fails on a `build` folder it didn't create.
+
+## Widget
+`ios/App/NutriTraceWidget` is a WidgetKit extension: today's calories left and protein, in small, medium and
+lock-screen sizes. Add it from the home screen (long-press → Edit → Add Widget → NutriTrace).
+- **From the app:** the Diary (`src/routes/Diary.svelte`) sends today's numbers and its effective goals through
+  `src/lib/ios-widget.js` → `WidgetBridgePlugin` (registered in `BridgeViewController`). They go into the App Group
+  `group.com.tennisshoeninja.nutritrace`, and the widget redraws right away.
+- **From the server:** about every 15 minutes the widget fetches `/api/v1/diary/<today>/totals`, which picks up entries
+  logged on the web or Android. It uses a read-only (`mcp:read`) API token named "iPhone widget", which the app
+  creates on launch and keeps in the shared Keychain group. You can revoke it in Settings → API tokens; signing out
+  revokes it too. This needs `PUBLIC_API_ENABLED=true` on the server; without it the widget only updates from the app.
+- Goals always come from the app (they include activity and adaptive adjustments the server doesn't calculate).
+- The Xcode target was added with a script using the `xcodeproj` gem that ships with CocoaPods; it's now part of
+  `App.xcodeproj`, so `npx cap sync ios` leaves it alone.
 
 If a new plugin is added upstream, check whether it supports iOS. `npx cap sync ios` adds it to the Podfile.
 

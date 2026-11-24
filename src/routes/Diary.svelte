@@ -6,7 +6,8 @@
   import { _ } from 'svelte-i18n';
   import DatePicker from '../components/ui/DatePicker.svelte';
   import DateInput  from '../components/ui/DateInput.svelte';
-  import { resolveAssetUrl, isNative, getServerUrl } from '../lib/platform.js';
+  import { resolveAssetUrl, isNative, isIOS, getServerUrl } from '../lib/platform.js';
+  import { pushWidgetSnapshot, ensureWidgetToken } from '../lib/ios-widget.js';
   import { resolveGoalFor } from '../lib/goal-resolver.js';
   import { fade, slide, fly } from 'svelte/transition';
   import { tweened } from 'svelte/motion';
@@ -593,6 +594,7 @@
   }
   let _railResizeObs = null;
   onMount(() => {
+    ensureWidgetToken(); // iOS widget's read-only API token, once per launch
     requestAnimationFrame(() => requestAnimationFrame(_measureRail));
     try {
       _railResizeObs = new ResizeObserver(_measureRail);
@@ -888,6 +890,20 @@
   $: carbGoal  = _macroGoal('carbohydrates', $currentDate);
   $: protGoal  = _macroGoal('proteins', $currentDate);
   $: calPct    = Math.min(100, ((totals.calories||0) / caloriesGoalAdjusted) * 100);
+
+  // iOS widget: today's calories/protein and the goals exactly as shown here
+  // (activity, dynamic and adaptive adjustments included). No-op off iOS.
+  $: if (isIOS && $currentDate === localDateStr() && $currentEntry?.date === $currentDate) {
+    pushWidgetSnapshot({
+      date: $currentDate,
+      kcal: totals.calories || 0,
+      kcalGoal: caloriesGoalAdjusted,
+      protein: totals.proteins || 0,
+      proteinGoal: protGoal,
+      proteinIsMin: $goals?.proteins?.min != null && $goals?.proteins?.max == null,
+      energyUnit: $energyUnit,
+    });
+  }
 
   function formatDate(d) {
     if (!d) return '';

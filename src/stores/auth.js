@@ -284,6 +284,8 @@ export async function logout() {
       await pushBeforeSignOut();
     } catch { /* never block sign-out */ }
   }
+  // iOS widget: revoke its API token and forget its numbers (no-op elsewhere).
+  try { await (await import('../lib/ios-widget.js')).clearWidget(); } catch {}
   try {
     // Mobile flag tells the server to use the nutritrace://oidc-callback
     // deep link as post_logout_redirect_uri so the Capacitor browser can
