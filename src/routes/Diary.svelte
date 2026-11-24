@@ -1973,7 +1973,7 @@
           <span class="material-symbols-rounded date-complete-indicator" title="Day marked complete" aria-label="Day marked complete">task_alt</span>
         {/if}
       </span>
-      <span class="date-sub">{formatDateSub($currentDate, $dateFormat)}</span>
+      <span class="date-sub">{formatDateSub($currentDate, $dateFormat)}{#if _widgetWeight != null}<span class="date-weight"><span class="material-symbols-rounded">scale</span>{Number(_widgetWeight).toFixed(1)} {$weightUnit || 'kg'}</span>{/if}</span>  <!-- fork: morning weigh-in -->
     </button>
     <button class="btn-icon accent" on:click={nextDay} aria-label={$_('diary.nav.next_day')} title={$_('diary.nav.next_day')}>
       <span class="material-symbols-rounded">chevron_right</span>
@@ -3623,6 +3623,9 @@
   }
   .date-label { font-size: 17px; font-weight: 700; color: var(--accent); display: inline-flex; align-items: center; gap: 4px; }
   .date-sub   { font-size: 12px; color: var(--text-3); }
+  /* fork: morning weigh-in next to the date */
+  .date-weight { display: inline-flex; align-items: center; gap: 2px; margin-left: 8px; color: var(--accent); font-weight: 600; }
+  .date-weight .material-symbols-rounded { font-size: 14px; }
   .date-note-indicator { font-size: 16px; color: var(--text-3); vertical-align: middle; }
 
   .diary-content { padding-top: 12px; padding-bottom: 16px; gap: 12px; display: flex; flex-direction: column; }
