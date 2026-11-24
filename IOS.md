@@ -1,7 +1,8 @@
 # Personal iOS build
 
-The `ios` branch of this fork adds a Capacitor iOS shell around the same web app the Android build uses.
-It's for personal use only and nothing here goes upstream.
+The `main` branch of this fork adds a Capacitor iOS shell around the same web app the Android build uses.
+It's for personal use only and nothing here goes upstream. (This work used to live on an `ios` branch;
+it was merged into `main` on 2026-11-24 and `main` is the branch to use now.)
 
 ## What differs from upstream
 - `capacitor.config.ts`: `appId` is `com.tennisshoeninja.nutritrace`.
@@ -17,7 +18,7 @@ It's for personal use only and nothing here goes upstream.
 
 ## Keeping the app in step with the web app
 The iPhone app ships its own copy of the web app (`dist/`, copied into the app at build time). It does
-**not** pick up frontend changes from the server. After you change the web app on `ios`:
+**not** pick up frontend changes from the server. After you change the web app on `main`:
 - **Frontend only** (`src/`): pull on the Mac, then build, sync and install (the commands below, from
   `npm run build` on). cronpi doesn't need anything.
 - **Server changed too** (`server/`): also rebuild `nutritrace:ios` on cronpi (see Server below).
@@ -25,7 +26,7 @@ The iPhone app ships its own copy of the web app (`dist/`, copied into the app a
 ## Rebuild after an upstream release
 ```bash
 git fetch upstream --tags
-git checkout ios
+git checkout main
 git merge upstream/main          # or the release tag, e.g. v1.5.0
 ```
 Resolve conflicts. Then check that any new Health Connect / Android-only code checks `isAndroid`:
@@ -79,7 +80,7 @@ built from this branch until upstream accepts that origin.
 
 On cronpi, in a checkout of this fork:
 ```bash
-git fetch origin && git checkout ios && git pull
+git fetch origin && git checkout main && git pull
 docker build -t nutritrace:ios .
 ```
 In cronpi's compose file, change `image: ghcr.io/traceapps/nutritrace:...` to `image: nutritrace:ios`, keep the
@@ -92,4 +93,4 @@ Check it:
 curl -si -X OPTIONS -H "Origin: capacitor://app.nutritrace.local" -H "Access-Control-Request-Method: GET" https://cronpi.tail4ec703.ts.net/nutrition/api/health | grep -i allow-origin
 ```
 It should print `access-control-allow-origin: capacitor://app.nutritrace.local`. After each upstream release, merge it
-into `ios` (see above) and rebuild this image instead of pulling upstream's.
+into `main` (see above) and rebuild this image instead of pulling upstream's.
