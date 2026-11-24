@@ -15,6 +15,13 @@ It's for personal use only and nothing here goes upstream.
   not `isNative`. `healthConnectEnabled` syncs through the server, so it can be `true` on the iPhone too.
   Leave the setting alone and check the platform where it's used.
 
+## Keeping the app in step with the web app
+The iPhone app ships its own copy of the web app (`dist/`, copied into the app at build time). It does
+**not** pick up frontend changes from the server. After you change the web app on `ios`:
+- **Frontend only** (`src/`): pull on the Mac, then build, sync and install (the commands below, from
+  `npm run build` on). cronpi doesn't need anything.
+- **Server changed too** (`server/`): also rebuild `nutritrace:ios` on cronpi (see Server below).
+
 ## Rebuild after an upstream release
 ```bash
 git fetch upstream --tags
