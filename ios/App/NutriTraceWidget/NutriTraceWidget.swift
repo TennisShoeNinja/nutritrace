@@ -15,6 +15,7 @@ struct TodayProvider: TimelineProvider {
     private static let sample = WidgetSnapshot(
         date: WidgetShared.dayString(), kcal: 1184, kcalGoal: 2200, protein: 162, proteinGoal: 234,
         proteinIsMin: true, carbs: 140, carbsGoal: 220, carbsIsMin: false, fat: 48, fatGoal: 70, fatIsMin: false,
+        meals: [MealCalories(name: "Breakfast", kcal: 420), MealCalories(name: "Lunch", kcal: 610), MealCalories(name: "Dinner", kcal: 0), MealCalories(name: "Snacks", kcal: 154)],
         energyUnit: "kcal", updatedAt: Date(), source: "app")
 
     func placeholder(in context: Context) -> TodayEntry {
@@ -87,6 +88,7 @@ enum ServerRefresh {
             snap.fatIsMin = isMin("fat")
         }
 
+        if snap.date != today { snap.meals = nil; snap.mealsAt = nil } // yesterday's meals
         snap.date = today
         snap.kcal = num(t["calories"]) ?? 0
         snap.protein = num(t["proteins"]) ?? 0
@@ -169,6 +171,9 @@ struct Macro {
 struct TodayNumbers {
     let eaten: Double, goal: Double?
     let macros: [Macro]
+    let meals: [MealCalories]
+    /// Set when the server's total no longer matches the app's meal breakdown.
+    let mealsAsOf: Date?
     let unit: String, factor: Double, asOf: Date?
 
     init(_ entry: TodayEntry) {
@@ -189,6 +194,9 @@ struct TodayNumbers {
         ]
         // Show "as of" when the numbers are over an hour old (same day only).
         if today, let u = s?.updatedAt, entry.date.timeIntervalSince(u) > 3600 { asOf = u } else { asOf = nil }
+        meals = today ? (s?.meals ?? []) : []
+        let mealSum = meals.reduce(0) { $0 + $1.kcal }
+        if !meals.isEmpty, abs(mealSum - eaten) > 1, let at = s?.mealsAt { mealsAsOf = at } else { mealsAsOf = nil }
     }
 
     private static func positive(_ v: Double?) -> Double? { v.flatMap { $0 > 0 ? $0 : nil } }
@@ -255,6 +263,29 @@ struct MacroBar: View {
     }
 }
 
+/// "Calories  620 / 2,200" with a bar, sitting above the macro bars.
+struct CalorieBar: View {
+    let n: TodayNumbers
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            HStack(spacing: 3) {
+                Text("Calories").font(.caption2).foregroundStyle(.secondary)
+                Spacer(minLength: 0)
+                Text(n.goal.map { "\(n.energy(n.eaten)) / \(n.energy($0))" } ?? "\(n.energy(n.eaten)) \(n.unit)")
+                    .font(.caption2.weight(.semibold)).monospacedDigit()
+                    .foregroundStyle(n.remaining.map { $0 < 0 } == true ? Color.red : Color.primary)
+            }
+            GeometryReader { g in
+                ZStack(alignment: .leading) {
+                    Capsule().fill(Color.ntCalories.opacity(0.2))
+                    Capsule().fill(Color.ntCalories).frame(width: max(g.size.width * n.progress, n.eaten > 0 ? 5 : 0))
+                }
+            }
+            .frame(height: 5)
+        }
+    }
+}
+
 // MARK: - Views per family
 
 struct TodayWidgetView: View {
@@ -270,6 +301,7 @@ struct TodayWidgetView: View {
                 switch family {
                 case .systemSmall: small(n)
                 case .systemMedium: medium(n)
+                case .systemLarge: large(n)
                 case .accessoryCircular: circular(n)
                 case .accessoryRectangular: rectangular(n)
                 case .accessoryInline: inline(n)
@@ -298,33 +330,85 @@ struct TodayWidgetView: View {
         }
     }
 
+    /// Coloured "P 70  C 45  F 19".
+    private func pcf(_ n: TodayNumbers) -> some View {
+        HStack(spacing: 6) {
+            ForEach(n.macros, id: \.short) { m in
+                HStack(spacing: 1) {
+                    Text(m.short).foregroundStyle(m.color).fontWeight(.bold)
+                    Text(m.amount).monospacedDigit()
+                }
+            }
+        }
+        .font(.caption2).lineLimit(1).minimumScaleFactor(0.7)
+    }
+
+    // Option A, small: ring, eaten / goal, P · C · F.
     private func small(_ n: TodayNumbers) -> some View {
-        VStack(spacing: 6) {
+        VStack(spacing: 4) {
             CalorieRing(n: n, lineWidth: 10)
             if n.asOf != nil {
                 asOf(n)
-            } else {
-                // Coloured P · C · F amounts under the ring.
-                HStack(spacing: 6) {
-                    ForEach(n.macros, id: \.short) { m in
-                        HStack(spacing: 1) {
-                            Text(m.short).foregroundStyle(m.color).fontWeight(.bold)
-                            Text(m.amount).monospacedDigit()
-                        }
-                    }
-                }
-                .font(.caption2).lineLimit(1).minimumScaleFactor(0.7)
+            } else if let g = n.goal {
+                Text("\(n.energy(n.eaten)) / \(n.energy(g))").font(.caption2).foregroundStyle(.secondary).monospacedDigit()
+            }
+            pcf(n)
+        }
+    }
+
+    // Option A, medium: ring, then Calories above Protein, Carbs, Fat.
+    private func medium(_ n: TodayNumbers) -> some View {
+        HStack(spacing: 14) {
+            CalorieRing(n: n, lineWidth: 11).frame(maxWidth: 112)
+            VStack(alignment: .leading, spacing: 6) {
+                CalorieBar(n: n)
+                ForEach(n.macros, id: \.short) { MacroBar(m: $0) }
+                asOf(n)
             }
         }
     }
 
-    private func medium(_ n: TodayNumbers) -> some View {
-        HStack(spacing: 14) {
-            CalorieRing(n: n, lineWidth: 11).frame(maxWidth: 118)
-            VStack(alignment: .leading, spacing: 7) {
-                ForEach(n.macros, id: \.short) { MacroBar(m: $0) }
-                asOf(n)
+    // Option A, large: ring with eaten and goal, the four bars, calories per meal.
+    private func large(_ n: TodayNumbers) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 16) {
+                CalorieRing(n: n, lineWidth: 12).frame(width: 124, height: 124)
+                VStack(alignment: .leading, spacing: 8) {
+                    stat("Eaten", "\(n.energy(n.eaten)) \(n.unit)")
+                    if let g = n.goal { stat("Goal", "\(n.energy(g)) \(n.unit)") }
+                    asOf(n)
+                }
+                Spacer(minLength: 0)
             }
+            VStack(alignment: .leading, spacing: 8) {
+                CalorieBar(n: n)
+                ForEach(n.macros, id: \.short) { MacroBar(m: $0) }
+            }
+            if !n.meals.isEmpty {
+                Divider()
+                LazyVGrid(columns: [GridItem(.flexible(), spacing: 16), GridItem(.flexible())], alignment: .leading, spacing: 5) {
+                    ForEach(Array(n.meals.enumerated()), id: \.offset) { _, meal in
+                        HStack {
+                            Text(meal.name).font(.caption2).foregroundStyle(.secondary).lineLimit(1)
+                            Spacer(minLength: 4)
+                            Text(meal.kcal > 0 ? "\(n.energy(meal.kcal)) \(n.unit)" : "–")
+                                .font(.caption2.weight(.semibold)).monospacedDigit()
+                        }
+                    }
+                }
+                if let at = n.mealsAsOf {
+                    Text("Meals as of \(at.formatted(date: .omitted, time: .shortened))")
+                        .font(.caption2).foregroundStyle(.secondary)
+                }
+            }
+            Spacer(minLength: 0)
+        }
+    }
+
+    private func stat(_ label: String, _ value: String) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text(label).font(.caption).foregroundStyle(.secondary)
+            Text(value).font(.headline).monospacedDigit()
         }
     }
 
@@ -361,7 +445,7 @@ struct NutriTraceTodayWidget: Widget {
         }
         .configurationDisplayName("Today")
         .description("Calories left, protein, carbs and fat for today.")
-        .supportedFamilies([.systemSmall, .systemMedium, .accessoryCircular, .accessoryRectangular, .accessoryInline])
+        .supportedFamilies([.systemSmall, .systemMedium, .systemLarge, .accessoryCircular, .accessoryRectangular, .accessoryInline])
     }
 }
 

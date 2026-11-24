@@ -20,6 +20,11 @@ public class WidgetBridgePlugin: CAPPlugin, CAPBridgedPlugin {
 
     @objc func setSnapshot(_ call: CAPPluginCall) {
         guard let date = call.getString("date") else { return call.reject("date is required") }
+        let meals: [MealCalories]? = call.getArray("meals")?.compactMap { raw in
+            guard let m = raw as? [String: Any], let name = m["name"] as? String else { return nil }
+            return MealCalories(name: name, kcal: (m["kcal"] as? NSNumber)?.doubleValue ?? 0)
+        }
+        let now = Date()
         let snap = WidgetSnapshot(
             date: date,
             kcal: call.getDouble("kcal") ?? 0,
@@ -33,12 +38,15 @@ public class WidgetBridgePlugin: CAPPlugin, CAPBridgedPlugin {
             fat: call.getDouble("fat"),
             fatGoal: call.getDouble("fatGoal"),
             fatIsMin: call.getBool("fatIsMin"),
+            meals: meals,
+            mealsAt: meals == nil ? nil : now,
             energyUnit: call.getString("energyUnit") ?? "kcal",
-            updatedAt: Date(),
+            updatedAt: now,
             source: "app")
         // Skip redraws when nothing visible changed (the Diary re-renders often).
         if var old = WidgetShared.loadSnapshot() {
             old.updatedAt = snap.updatedAt
+            old.mealsAt = snap.mealsAt
             old.source = "app"
             if old == snap {
                 WidgetShared.saveSnapshot(old)

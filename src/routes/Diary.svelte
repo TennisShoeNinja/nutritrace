@@ -907,6 +907,11 @@
       fat: totals.fat || 0,
       fatGoal: fatGoal,
       fatIsMin: $goals?.fat?.min != null && $goals?.fat?.max == null,
+      // Calories per meal slot, same grouping as the meal cards below.
+      meals: meals.map((name, i) => ({
+        name,
+        kcal: Nutrition.sum((entry.items || []).filter(it => (it.meal ?? 0) === i).map(it => Nutrition.calculate(it))).calories || 0,
+      })),
       energyUnit: $energyUnit,
     });
   }

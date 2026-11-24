@@ -7,6 +7,11 @@
 import Foundation
 import Security
 
+struct MealCalories: Codable, Equatable {
+    var name: String
+    var kcal: Double
+}
+
 struct WidgetSnapshot: Codable, Equatable {
     var date: String          // local calendar day, yyyy-MM-dd
     var kcal: Double          // eaten, always kcal
@@ -21,6 +26,8 @@ struct WidgetSnapshot: Codable, Equatable {
     var fat: Double? = nil          // grams
     var fatGoal: Double? = nil
     var fatIsMin: Bool? = nil
+    var meals: [MealCalories]? = nil  // per meal slot, always from the app
+    var mealsAt: Date? = nil          // when the app last calculated them
     var energyUnit: String    // "kcal" or "kJ", for display only
     var updatedAt: Date
     var source: String        // "app" or "server"
