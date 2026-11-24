@@ -22,6 +22,7 @@
            fastingEnabled,
            diaryShowCompletion } from '../stores/settings.js';
   import FastingInsights from '../components/diary/FastingInsights.svelte';
+  import WeightRateCard from '../components/stats/WeightRateCard.svelte';   // fork: rate of loss
   import { isNative, isAndroid } from '../lib/platform.js';
   import { foldText } from '../lib/search-text.js';
 
@@ -1123,6 +1124,9 @@
         <canvas bind:this={canvasEl}></canvas>
       </div>
     </div>
+
+    <!-- fork: rate of loss, week over week -->
+    {#if metric === 'weight'}<WeightRateCard />{/if}
 
     <!-- Timeline list -->
     {#if data.length > 0}
